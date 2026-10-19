@@ -1,0 +1,203 @@
+/* TenantLayout — Top nav (desktop) + Bottom nav (mobile) */
+
+.tenant-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-bg);
+}
+
+/* ── Top header ── */
+.tenant-header {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.tenant-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  height: var(--tenant-nav-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.tenant-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.brand-dot-t {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-terracotta);
+}
+
+.tenant-brand-name {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+/* ── Top nav links ── */
+.tenant-top-nav {
+  flex: 1;
+}
+
+.tenant-top-nav-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tenant-top-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  font-weight: 400;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tenant-top-link:hover {
+  background-color: var(--color-border-lt);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.tenant-top-link.active {
+  background-color: rgba(41, 72, 58, 0.08);
+  color: var(--color-forest);
+  font-weight: 500;
+}
+
+/* ── Header actions ── */
+.tenant-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.tenant-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.tenant-user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.tenant-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-forest);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tenant-logout-btn {
+  color: var(--color-muted);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  transition: color 0.12s ease, background-color 0.12s ease;
+  display: flex;
+  align-items: center;
+}
+
+.tenant-logout-btn:hover {
+  color: var(--color-text);
+  background-color: var(--color-border-lt);
+}
+
+/* ── Main content ── */
+.tenant-main {
+  flex: 1;
+  padding-bottom: 0;
+}
+
+/* ── Bottom nav (mobile only) ── */
+.tenant-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  z-index: 100;
+}
+
+.tenant-bottom-nav-list {
+  display: flex;
+  height: 56px;
+}
+
+.tenant-bottom-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--color-muted);
+  font-size: 10px;
+  text-decoration: none;
+  transition: color 0.12s ease;
+  padding: 6px 4px 4px;
+}
+
+.tenant-bottom-link.active {
+  color: var(--color-terracotta);
+}
+
+.bottom-nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* ── Responsive breakpoints ── */
+@media (max-width: 1024px) {
+  .tenant-top-nav {
+    display: none;
+  }
+
+  .tenant-user-info {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .tenant-bottom-nav {
+    display: block;
+  }
+
+  .tenant-main {
+    padding-bottom: 56px;
+  }
+}
