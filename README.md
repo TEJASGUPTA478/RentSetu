@@ -1,16 +1,25 @@
-# React + Vite
+# RentSetu owner portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A small React + Vite demo for a rental-management system. It runs entirely on sample data by default; the sign-in screen is a demo gate and accepts any email and password.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```sh
+npm install
+npm run dev
+```
 
-## React Compiler
+Use `npm run build` to produce the static production bundle in `dist/`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Backend integration
 
-## Expanding the Oxlint configuration
+Connect the UI through `src/services/api.js`. That module exports `API_BASE_URL`, `useMockData`, and named service functions for properties, tenants, payments, and maintenance requests. Set `VITE_API_BASE_URL` to the backend API root and `VITE_USE_MOCK_DATA=false` when switching the service functions to `fetch`; mock mode is currently retained by the UI for a reliable demo.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Expected resource shapes are represented by the sample objects in that file:
+
+- `GET /properties`: `{ id, name, address, type, units, occupied, rent }[]`; create properties with `POST /properties` using the same fields.
+- `GET /tenants`: `{ id, name, email, phone, property, unit, lease, rentStatus }[]`; create tenants with `POST /tenants` using tenant details and lease dates.
+- `GET /payments`: `{ id, tenant, property, amount, due, paid, status }[]`.
+- `GET /maintenance-requests`: `{ id, tenant, property, issue, date, status }[]`.
+
+The UI expects dates as readable strings and statuses `Paid`, `Due`, `Overdue`, `Open`, `In progress`, or `Resolved`. No authentication, payment processing, or backend behavior is implemented. Add request/error handling and map backend response fields inside the service module when the API contract is available.

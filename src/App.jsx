@@ -1,84 +1,65 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './hooks/useAuth.jsx';
-import ProtectedRoute from './components/common/ProtectedRoute.jsx';
+import { useMemo, useState } from 'react'
+import { initialProperties, initialTenants, payments, requests } from './services/api.js'
 
-// Layouts
-import OwnerLayout from './layouts/OwnerLayout.jsx';
-import TenantLayout from './layouts/TenantLayout.jsx';
+const nav = [
+  ['Dashboard', '▦'], ['Properties', '⌂'], ['Tenants', '♙'], ['Rent & Payments', '₹'], ['Maintenance', '⚒'],
+]
+const money = n => `₹${Number(n).toLocaleString('en-IN')}`
 
-// Public pages
-import LandingPage from './pages/public/LandingPage.jsx';
-import LoginPage from './pages/public/LoginPage.jsx';
-import RegisterPage from './pages/public/RegisterPage.jsx';
-import ForgotPasswordPage from './pages/public/ForgotPasswordPage.jsx';
+function Icon({ children }) { return <span className="nav-icon" aria-hidden="true">{children}</span> }
+function Sidebar({ page, setPage, mobileOpen, setMobileOpen }) {
+  return <><aside className={`sidebar ${mobileOpen ? 'show' : ''}`}>
+    <div className="brand"><div className="brand-mark">R</div><div><b>RentSetu</b><small>OWNER PORTAL</small></div></div>
+    <div className="nav-label">WORKSPACE</div>
+    <nav>{nav.map(([label, icon]) => <button key={label} className={`nav-item ${page === label ? 'active' : ''}`} onClick={() => { setPage(label); setMobileOpen(false) }}><Icon>{icon}</Icon>{label}{label === 'Rent & Payments' && <span className="nav-count">3</span>}</button>)}</nav>
+    <div className="sidebar-bottom"><div className="help-card"><div className="help-icon">?</div><b>Need a hand?</b><p>Check out our quick guide to get started.</p><button onClick={() => alert('Quick guide coming soon')}>View guide <span>↗</span></button></div><div className="user-mini"><div className="avatar">AK</div><div className="user-meta"><b>Arjun Kumar</b><small>Property owner</small></div><button className="dots" aria-label="Account options">···</button></div></div>
+  </aside>{mobileOpen && <button className="scrim" onClick={() => setMobileOpen(false)} aria-label="Close menu" />}</>
+}
+function Header({ title, subtitle, action, onAction, onMenu }) { return <header className="page-header"><button className="menu-button" onClick={onMenu} aria-label="Open navigation">☰</button><div><div className="breadcrumbs">Workspace <span>/</span> {title}</div><h1>{title}</h1><p>{subtitle}</p></div><div className="header-actions"><button className="icon-button" aria-label="Notifications" onClick={() => alert('You’re all caught up!')}>♧<i /></button>{action && <button className="primary-btn" onClick={onAction}><span>＋</span> {action}</button>}</div></header> }
+function Badge({ children }) { return <span className={`badge ${String(children).toLowerCase().replaceAll(' ', '-')}`}>{children}</span> }
+function StatCard({ label, value, hint, icon, tone }) { return <div className="stat-card"><div className={`stat-icon ${tone}`}>{icon}</div><div className="stat-label">{label}</div><strong>{value}</strong><div className="stat-hint">{hint}</div></div> }
+function Modal({ type, close, submit, properties }) {
+  const isProperty = type === 'property'
+  return <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && close()}><form className="modal" onSubmit={e => { e.preventDefault(); submit(Object.fromEntries(new FormData(e.currentTarget))); close() }}>
+    <div className="modal-head"><div><h2>Add {isProperty ? 'property' : 'tenant'}</h2><p>Enter the details below to add a new {isProperty ? 'property' : 'tenant'}.</p></div><button type="button" className="close-btn" onClick={close}>×</button></div>
+    {isProperty ? <><Field label="Property name" name="name" placeholder="e.g. Maple Residency" required /><Field label="Address" name="address" placeholder="Street, area, city" required /><div className="form-row"><Field label="Property type" name="type" select options={['Apartment', 'Villa', 'Independent house', 'Studio']} /><Field label="Monthly rent (₹)" name="rent" type="number" placeholder="24500" required /></div><div className="form-row"><Field label="Total units" name="units" type="number" placeholder="1" required /><Field label="Occupied units" name="occupied" type="number" placeholder="0" required /></div></> : <><Field label="Tenant name" name="name" placeholder="Full name" required /><div className="form-row"><Field label="Email address" name="email" type="email" placeholder="name@email.com" required /><Field label="Phone number" name="phone" placeholder="+91 98765 43210" required /></div><div className="form-row"><Field label="Property" name="property" select options={properties.map(p => p.name)} /><Field label="Unit" name="unit" placeholder="A-101" /></div><div className="form-row"><Field label="Lease start" name="leaseStart" type="date" required /><Field label="Lease end" name="leaseEnd" type="date" required /></div></>}
+    <div className="modal-footer"><button type="button" className="secondary-btn" onClick={close}>Cancel</button><button className="primary-btn" type="submit">Add {isProperty ? 'property' : 'tenant'}</button></div>
+  </form></div>
+}
+function Field({ label, name, type = 'text', placeholder, required, select, options = [] }) { return <label className="field"><span>{label}</span>{select ? <select name={name} defaultValue={options[0]}>{options.map(x => <option key={x}>{x}</option>)}</select> : <input name={name} type={type} placeholder={placeholder} required={required} />}</label> }
+function Search({ value, setValue, placeholder = 'Search...' }) { return <label className="search"><span>⌕</span><input value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} /></label> }
+function Empty({ text }) { return <div className="empty"><span>⌕</span><p>{text}</p></div> }
 
-// Owner pages
-import DashboardPage from './pages/owner/DashboardPage.jsx';
-import PropertiesPage from './pages/owner/PropertiesPage.jsx';
-import TenantsPage from './pages/owner/TenantsPage.jsx';
-import RentPage from './pages/owner/RentPage.jsx';
-import MetersPage from './pages/owner/MetersPage.jsx';
-import BillsPage from './pages/owner/BillsPage.jsx';
-import MaintenancePage from './pages/owner/MaintenancePage.jsx';
-import ExpensesPage from './pages/owner/ExpensesPage.jsx';
-import ReportsPage from './pages/owner/ReportsPage.jsx';
-import SettingsPage from './pages/owner/SettingsPage.jsx';
-import HelpPage from './pages/owner/HelpPage.jsx';
-
-// Tenant pages
-import TenantDashboardPage from './pages/tenant/TenantDashboardPage.jsx';
-import TenantRentPage from './pages/tenant/TenantRentPage.jsx';
-import TenantBillsPage from './pages/tenant/TenantBillsPage.jsx';
-import TenantPaymentsPage from './pages/tenant/TenantPaymentsPage.jsx';
-import TenantMaintenancePage from './pages/tenant/TenantMaintenancePage.jsx';
-import TenantProfilePage from './pages/tenant/TenantProfilePage.jsx';
+function Dashboard({ properties, tenants, setPage }) {
+  const occupied = properties.reduce((n, p) => n + Number(p.occupied), 0), units = properties.reduce((n, p) => n + Number(p.units), 0)
+  return <><div className="stats-grid"><StatCard label="Total properties" value={properties.length} hint="Across your portfolio" icon="⌂" tone="blue" /><StatCard label="Occupied units" value={`${occupied} / ${units}`} hint="Units currently rented" icon="▣" tone="green" /><StatCard label="Vacant units" value={units - occupied} hint="Ready to be rented" icon="⌂" tone="amber" /><StatCard label="Rent collected" value="₹1,12,500" hint="↑ 8.2% from last month" icon="₹" tone="purple" /><StatCard label="Pending rent" value="₹60,500" hint="3 payments outstanding" icon="◷" tone="red" /></div>
+    <div className="dashboard-grid"><section className="panel"><div className="panel-heading"><div><h2>Rent overview</h2><p>Collection summary for October 2025</p></div><select className="small-select"><option>This month</option><option>Last month</option></select></div><div className="overview-numbers"><div><small>Collected</small><strong>₹1,12,500</strong><span className="positive">↑ 8.2%</span></div><div><small>Outstanding</small><strong>₹60,500</strong><span className="negative">3 payments</span></div></div><div className="chart"><div className="chart-y"><span>1.5L</span><span>1L</span><span>50k</span><span>0</span></div><div className="chart-area"><div className="chart-grid"><i /><i /><i /><i /></div><svg viewBox="0 0 650 150" preserveAspectRatio="none" role="img" aria-label="Rent collection trend"><defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#4659d8" stopOpacity=".18"/><stop offset="1" stopColor="#4659d8" stopOpacity="0"/></linearGradient></defs><path d="M0,116 C50,105 60,92 105,99 S160,65 210,78 S270,82 315,58 S375,70 420,46 S485,68 525,35 S600,52 650,18 V150 H0Z" fill="url(#fill)"/><path d="M0,116 C50,105 60,92 105,99 S160,65 210,78 S270,82 315,58 S375,70 420,46 S485,68 525,35 S600,52 650,18" fill="none" stroke="#4659d8" strokeWidth="3" vectorEffect="non-scaling-stroke" /></svg><div className="chart-x"><span>01 Oct</span><span>05 Oct</span><span>10 Oct</span><span>15 Oct</span><span>20 Oct</span><span>25 Oct</span><span>31 Oct</span></div></div></div></section>
+    <section className="panel activity-panel"><div className="panel-heading"><div><h2>Upcoming payments</h2><p>Keep track of expected rent</p></div><button className="text-link" onClick={() => setPage('Rent & Payments')}>View all →</button></div>{payments.filter(x => x.status !== 'Paid').slice(0, 3).map((p, i) => <div className="activity-row" key={p.id}><div className={`activity-avatar color-${i}`}>{p.tenant.split(' ').map(a => a[0]).join('')}</div><div className="activity-main"><b>{p.tenant}</b><small>{p.property}</small></div><div className="activity-side"><b>{money(p.amount)}</b><small>{p.due}</small></div></div>)}<button className="view-payments" onClick={() => setPage('Rent & Payments')}>See all payments <span>→</span></button></section></div>
+    <section className="panel recent-panel"><div className="panel-heading"><div><h2>Recent activity</h2><p>What’s happening across your properties</p></div><button className="text-link" onClick={() => setPage('Maintenance')}>View requests →</button></div><div className="activity-feed">{requests.slice(0, 3).map((r, i) => <div className="feed-item" key={r.id}><div className={`feed-mark mark-${i}`}>{i === 0 ? '⚒' : i === 1 ? '✓' : '＋'}</div><p><b>{r.tenant}</b> {i === 0 ? 'reported a maintenance issue at' : i === 1 ? 'payment was received for' : 'submitted a request at'} <b>{r.property}</b><small>{r.date} · {r.issue}</small></p><Badge>{r.status}</Badge></div>)}</div></section>
+  </>
+}
+function Properties({ items, onAdd }) {
+  const [query, setQuery] = useState('')
+  const filtered = items.filter(p => `${p.name} ${p.address} ${p.type}`.toLowerCase().includes(query.toLowerCase()))
+  return <><div className="toolbar"><Search value={query} setValue={setQuery} placeholder="Search properties..." /><button className="filter-btn" onClick={() => setQuery('')}>☷ <span>Filters</span></button><span className="results-count">{filtered.length} properties</span></div><div className="property-grid">{filtered.map(p => <article className="property-card" key={p.id}><div className={`property-cover cover-${p.id % 3}`}><span className="cover-label">{p.type}</span><span className="cover-art">⌂</span><button className="property-more" aria-label="More options">···</button></div><div className="property-info"><div className="property-title"><div><h2>{p.name}</h2><p>⌖ {p.address}</p></div><button className="arrow-button" aria-label={`View ${p.name}`}>↗</button></div><div className="property-metrics"><div><small>Monthly rent</small><b>{money(p.rent)}<span> / unit</span></b></div><div><small>Occupancy</small><b>{p.occupied} <span>/ {p.units} units</span></b></div></div><div className="occupancy-track"><i style={{ width: `${p.units ? Math.round(p.occupied / p.units * 100) : 0}%` }} /></div><div className="property-foot"><span><i className="dot green-dot" /> {p.occupied} occupied</span><span><i className="dot amber-dot" /> {p.units - p.occupied} vacant</span></div></div></article>)}<button className="add-property-card" onClick={onAdd}><span>＋</span><b>Add a property</b><small>Add a new property to your portfolio</small></button></div>{!filtered.length && <Empty text="No properties match your search." />}</>
+}
+function Tenants({ items, onAdd }) {
+  const [query, setQuery] = useState('')
+  const filtered = items.filter(t => `${t.name} ${t.email} ${t.property} ${t.unit}`.toLowerCase().includes(query.toLowerCase()))
+  return <><div className="toolbar"><Search value={query} setValue={setQuery} placeholder="Search tenants..." /><button className="filter-btn" onClick={() => setQuery('')}>☷ <span>Filters</span></button><span className="results-count">{filtered.length} tenants</span></div><div className="table-wrap"><table><thead><tr><th>TENANT</th><th>PROPERTY / UNIT</th><th>LEASE PERIOD</th><th>MONTHLY RENT</th><th>RENT STATUS</th><th /></tr></thead><tbody>{filtered.map((t, i) => <tr key={t.id}><td><div className="person"><div className={`avatar avatar-${i}`}>{t.name.split(' ').map(x => x[0]).join('')}</div><div><b>{t.name}</b><small>{t.email}<br />{t.phone}</small></div></div></td><td><b>{t.property}</b><small className="subline">{t.unit}</small></td><td>{t.lease}</td><td>{money((propertiesByName(t.property) || {}).rent || 24500)}</td><td><Badge>{t.rentStatus}</Badge></td><td><button className="row-menu" aria-label="Tenant options">···</button></td></tr>)}</tbody></table>{!filtered.length && <Empty text="No tenants match your search." />}</div></>
+}
+function propertiesByName(name) { return initialProperties.find(p => p.name === name) }
+function Payments() { const [filter, setFilter] = useState('All'); const rows = payments.filter(p => filter === 'All' || p.status === filter); return <><div className="toolbar"><div className="tabs">{['All', 'Due', 'Paid', 'Overdue'].map(x => <button key={x} className={filter === x ? 'selected' : ''} onClick={() => setFilter(x)}>{x}{x === 'Overdue' && <span className="tab-count">1</span>}</button>)}</div><span className="results-count">October 2025</span></div><div className="table-wrap"><table><thead><tr><th>TENANT</th><th>PROPERTY / UNIT</th><th>DUE DATE</th><th>PAID DATE</th><th>AMOUNT</th><th>STATUS</th></tr></thead><tbody>{rows.map((p, i) => <tr key={p.id}><td><div className="person"><div className={`avatar avatar-${i}`}>{p.tenant.split(' ').map(x => x[0]).join('')}</div><b>{p.tenant}</b></div></td><td>{p.property}</td><td>{p.due}</td><td>{p.paid}</td><td><b>{money(p.amount)}</b></td><td><Badge>{p.status}</Badge></td></tr>)}</tbody></table>{!rows.length && <Empty text="There are no payments in this category." />}</div><div className="payment-note"><span>ⓘ</span> Payment records are currently sample data for demonstration.</div></> }
+function Maintenance() { const [filter, setFilter] = useState('All'); const rows = requests.filter(r => filter === 'All' || r.status === filter); return <><div className="toolbar"><div className="tabs">{['All', 'Open', 'In progress', 'Resolved'].map(x => <button key={x} className={filter === x ? 'selected' : ''} onClick={() => setFilter(x)}>{x}</button>)}</div><span className="results-count">{rows.length} requests</span></div><div className="request-grid">{rows.map((r, i) => <article className="request-card" key={r.id}><div className="request-top"><div className={`request-icon req-${i}`}>⚒</div><Badge>{r.status}</Badge></div><h2>{r.issue}</h2><p className="request-property">⌂ {r.property}</p><div className="request-bottom"><div className="person"><div className={`avatar avatar-${i}`}>{r.tenant.split(' ').map(x => x[0]).join('')}</div><div><b>{r.tenant}</b><small>Reported {r.date}</small></div></div><button className="arrow-button" aria-label="View request">↗</button></div></article>)}</div>{!rows.length && <Empty text="No maintenance requests here." />}</> }
+function Login({ onLogin }) { return <main className="login-page"><div className="login-brand"><div className="brand-mark">R</div><b>RentSetu</b></div><div className="login-card"><div className="login-symbol">R</div><h1>Welcome back</h1><p>Sign in to manage your properties</p><form onSubmit={e => { e.preventDefault(); onLogin() }}><Field label="Email address" name="email" type="email" placeholder="you@example.com" required /><Field label="Password" name="password" type="password" placeholder="Enter your password" required /><div className="login-options"><label><input type="checkbox" defaultChecked /> Remember me</label><button type="button" className="text-link" onClick={() => alert('Demo sign-in does not use password recovery.')}>Forgot password?</button></div><button className="primary-btn login-submit">Sign in <span>→</span></button></form><div className="demo-hint">Demo mode — any email and password will sign in.</div></div><div className="login-foot">© 2025 RentSetu <span>·</span> Making renting simpler</div></main> }
 
 export default function App() {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-
-          {/* ── Public routes ── */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-
-          {/* ── Owner / Manager guard ── */}
-          <Route element={<ProtectedRoute roles={['owner', 'manager']} />}>
-            <Route element={<OwnerLayout />}>
-              <Route path="/dashboard"   element={<DashboardPage />} />
-              <Route path="/properties"  element={<PropertiesPage />} />
-              <Route path="/tenants"     element={<TenantsPage />} />
-              <Route path="/rent"        element={<RentPage />} />
-              <Route path="/meters"      element={<MetersPage />} />
-              <Route path="/bills"       element={<BillsPage />} />
-              <Route path="/maintenance" element={<MaintenancePage />} />
-              <Route path="/expenses"    element={<ExpensesPage />} />
-              <Route path="/reports"     element={<ReportsPage />} />
-              <Route path="/settings"    element={<SettingsPage />} />
-              <Route path="/help"        element={<HelpPage />} />
-            </Route>
-          </Route>
-
-          {/* ── Tenant guard ── */}
-          <Route element={<ProtectedRoute roles={['tenant']} />}>
-            <Route element={<TenantLayout />}>
-              <Route path="/tenant/dashboard"   element={<TenantDashboardPage />} />
-              <Route path="/tenant/rent"        element={<TenantRentPage />} />
-              <Route path="/tenant/bills"       element={<TenantBillsPage />} />
-              <Route path="/tenant/payments"    element={<TenantPaymentsPage />} />
-              <Route path="/tenant/maintenance" element={<TenantMaintenancePage />} />
-              <Route path="/tenant/profile"     element={<TenantProfilePage />} />
-            </Route>
-          </Route>
-
-          {/* ── 404 fallback ── */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+  const [page, setPage] = useState('Dashboard'), [loggedIn, setLoggedIn] = useState(true), [mobileOpen, setMobileOpen] = useState(false)
+  const [properties, setProperties] = useState(initialProperties), [tenants, setTenants] = useState(initialTenants), [modal, setModal] = useState(null)
+  const titles = { Dashboard: 'Dashboard', Properties: 'Properties', Tenants: 'Tenants', 'Rent & Payments': 'Rent & Payments', Maintenance: 'Maintenance requests' }
+  const subtitles = { Dashboard: 'Here’s what’s happening with your properties today.', Properties: 'Manage your properties and keep your portfolio up to date.', Tenants: 'Keep track of your tenants, leases, and rent status.', 'Rent & Payments': 'Review rent payments and track what’s outstanding.', Maintenance: 'Track and manage maintenance requests from your tenants.' }
+  const action = page === 'Properties' || page === 'Tenants' ? `Add ${page === 'Properties' ? 'property' : 'tenant'}` : null
+  function save(data) { if (modal === 'property') setProperties(p => [...p, { ...data, id: Date.now(), units: Number(data.units), occupied: Number(data.occupied), rent: Number(data.rent) }]); else setTenants(t => [...t, { ...data, id: Date.now(), lease: `${new Date(data.leaseStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} – ${new Date(data.leaseEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, rentStatus: 'Due' }]) }
+  if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />
+  return <div className="app-shell"><Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} /><main className="main"><Header title={titles[page]} subtitle={subtitles[page]} action={action} onAction={() => setModal(page === 'Properties' ? 'property' : 'tenant')} onMenu={() => setMobileOpen(true)} /><div className="content">{page === 'Dashboard' && <Dashboard properties={properties} tenants={tenants} setPage={setPage} />}{page === 'Properties' && <Properties items={properties} onAdd={() => setModal('property')} />}{page === 'Tenants' && <Tenants items={tenants} onAdd={() => setModal('tenant')} />}{page === 'Rent & Payments' && <Payments />}{page === 'Maintenance' && <Maintenance />}</div><footer>© 2025 RentSetu <span>·</span> Made for simpler property management</footer></main>{modal && <Modal type={modal} close={() => setModal(null)} submit={save} properties={properties} />}</div>
 }
