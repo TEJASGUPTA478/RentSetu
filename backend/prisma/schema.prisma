@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  LANDLORD
+  MANAGER
+  TENANT
+}
+
+enum UnitStatus {
+  VACANT
+  OCCUPIED
+}
+
+enum LeaseStatus {
+  ACTIVE
+  ENDED
+  TERMINATED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id                    String          @id @default(uuid())
+  name                  String
+  email                 String          @unique
+  passwordHash          String
+  role                  Role            @default(TENANT)
+  isActive              Boolean         @default(true)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  ownedProperties       Property[]      @relation("PropertyOwner")
+  managedProperties     Property[]      @relation("PropertyManager")
+  tenantProfile         TenantProfile?  @relation("TenantUser")
+  createdTenantProfiles TenantProfile[] @relation("TenantCreator")
+
+  @@index([role, isActive])
+}
+
+model Property {
+  id        String   @id @default(uuid())
+  ownerId   String
+  managerId String?
+  name      String
+  address   String
+  city      String
+  state     String
+  pincode   String
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owner     User     @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  manager   User?    @relation("PropertyManager", fields: [managerId], references: [id], onDelete: Restrict)
+  units     Unit[]
+
+  @@index([ownerId])
+  @@index([managerId])
+  @@index([ownerId, city])
+}
+
+model Unit {
+  id          String               @id @default(uuid())
+  propertyId  String
+  unitNumber  String
+  rent        Decimal              @db.Decimal(12, 2)
+  bedrooms    Int
+  status      UnitStatus           @default(VACANT)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  property    Property             @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  leases      Lease[]
+  maintenance MaintenanceRequest[]
+
+  @@unique([propertyId, unitNumber])
+  @@index([propertyId])
+  @@index([status])
+  @@index([propertyId, status])
+}
+
+model TenantProfile {
+  id                    String               @id @default(uuid())
+  userId                String               @unique
+  createdByLandlordId   String
+  phone                 String
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  idProofType           String?
+  idProofNumber         String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  user                  User                 @relation("TenantUser", fields: [userId], references: [id], onDelete: Restrict)
+  createdByLandlord     User                 @relation("TenantCreator", fields: [createdByLandlordId], references: [id], onDelete: Restrict)
+  leases                Lease[]
+  maintenanceRequests   MaintenanceRequest[]
+
+  @@index([createdByLandlordId])
+}
+
+model Lease {
+  id              String               @id @default(uuid())
+  unitId          String
+  tenantId        String
+  startDate       DateTime             @db.Date
+  endDate         DateTime             @db.Date
+  monthlyRent     Decimal              @db.Decimal(12, 2)
+  securityDeposit Decimal              @db.Decimal(12, 2)
+  /// Must be between 1 and 28; enforced by a SQL migration.
+  dueDay          Int
+  status          LeaseStatus          @default(ACTIVE)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  unit            Unit                 @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  tenant          TenantProfile        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payments        Payment[]
+  maintenance     MaintenanceRequest[]
+
+  @@index([unitId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([status, startDate, endDate])
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  leaseId      String
+  /// Must always be the first day of its month; enforced by a SQL migration.
+  billingMonth DateTime      @db.Date
+  amount       Decimal       @db.Decimal(12, 2)
+  method       PaymentMethod
+  paidOn       DateTime      @db.Date
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lease        Lease         @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+
+  @@unique([leaseId, billingMonth])
+  @@index([leaseId])
+  @@index([billingMonth])
+  @@index([paidOn])
+}
+
+model MaintenanceRequest {
+  id          String            @id @default(uuid())
+  unitId      String
+  leaseId     String?
+  tenantId    String
+  title       String
+  description String
+  priority    Priority          @default(MEDIUM)
+  status      MaintenanceStatus @default(OPEN)
+  resolvedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  unit        Unit              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  lease       Lease?            @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  tenant      TenantProfile     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([unitId])
+  @@index([leaseId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([unitId, status])
+}
+
+// one_active_lease_per_unit is intentionally managed by the raw SQL migration;
+// Prisma schema syntax cannot express this PostgreSQL partial unique index.

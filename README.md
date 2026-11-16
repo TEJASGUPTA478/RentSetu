@@ -2,6 +2,8 @@
 
 A small React + Vite demo for a rental-management system. It runs entirely on sample data by default; the sign-in screen is a demo gate and accepts any email and password.
 
+The backend foundation, Prisma schema, migrations, seed data, dashboard APIs, and API docs are in [`backend/`](backend/README.md).
+
 ## Run locally
 
 ```sh
@@ -10,6 +12,10 @@ npm run dev
 ```
 
 Use `npm run build` to produce the static production bundle in `dist/`.
+
+## Backend
+
+See [backend/README.md](backend/README.md) for PostgreSQL setup, migration/seed commands, dashboard endpoints, seeded development credentials, and deployment instructions. The frontend still uses mock data; wiring its pages to the API is a follow-up integration step.
 
 ## Backend integration
 
