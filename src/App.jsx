@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { useAuth } from './context/AuthContext.jsx'
 import { initialProperties, initialTenants, payments, requests } from './services/api.js'
 
 const nav = [
@@ -51,15 +52,68 @@ function Tenants({ items, onAdd }) {
 function propertiesByName(name) { return initialProperties.find(p => p.name === name) }
 function Payments() { const [filter, setFilter] = useState('All'); const rows = payments.filter(p => filter === 'All' || p.status === filter); return <><div className="toolbar"><div className="tabs">{['All', 'Due', 'Paid', 'Overdue'].map(x => <button key={x} className={filter === x ? 'selected' : ''} onClick={() => setFilter(x)}>{x}{x === 'Overdue' && <span className="tab-count">1</span>}</button>)}</div><span className="results-count">October 2025</span></div><div className="table-wrap"><table><thead><tr><th>TENANT</th><th>PROPERTY / UNIT</th><th>DUE DATE</th><th>PAID DATE</th><th>AMOUNT</th><th>STATUS</th></tr></thead><tbody>{rows.map((p, i) => <tr key={p.id}><td><div className="person"><div className={`avatar avatar-${i}`}>{p.tenant.split(' ').map(x => x[0]).join('')}</div><b>{p.tenant}</b></div></td><td>{p.property}</td><td>{p.due}</td><td>{p.paid}</td><td><b>{money(p.amount)}</b></td><td><Badge>{p.status}</Badge></td></tr>)}</tbody></table>{!rows.length && <Empty text="There are no payments in this category." />}</div><div className="payment-note"><span>ⓘ</span> Payment records are currently sample data for demonstration.</div></> }
 function Maintenance() { const [filter, setFilter] = useState('All'); const rows = requests.filter(r => filter === 'All' || r.status === filter); return <><div className="toolbar"><div className="tabs">{['All', 'Open', 'In progress', 'Resolved'].map(x => <button key={x} className={filter === x ? 'selected' : ''} onClick={() => setFilter(x)}>{x}</button>)}</div><span className="results-count">{rows.length} requests</span></div><div className="request-grid">{rows.map((r, i) => <article className="request-card" key={r.id}><div className="request-top"><div className={`request-icon req-${i}`}>⚒</div><Badge>{r.status}</Badge></div><h2>{r.issue}</h2><p className="request-property">⌂ {r.property}</p><div className="request-bottom"><div className="person"><div className={`avatar avatar-${i}`}>{r.tenant.split(' ').map(x => x[0]).join('')}</div><div><b>{r.tenant}</b><small>Reported {r.date}</small></div></div><button className="arrow-button" aria-label="View request">↗</button></div></article>)}</div>{!rows.length && <Empty text="No maintenance requests here." />}</> }
-function Login({ onLogin }) { return <main className="login-page"><div className="login-brand"><div className="brand-mark">R</div><b>RentSetu</b></div><div className="login-card"><div className="login-symbol">R</div><h1>Welcome back</h1><p>Sign in to manage your properties</p><form onSubmit={e => { e.preventDefault(); onLogin() }}><Field label="Email address" name="email" type="email" placeholder="you@example.com" required /><Field label="Password" name="password" type="password" placeholder="Enter your password" required /><div className="login-options"><label><input type="checkbox" defaultChecked /> Remember me</label><button type="button" className="text-link" onClick={() => alert('Demo sign-in does not use password recovery.')}>Forgot password?</button></div><button className="primary-btn login-submit">Sign in <span>→</span></button></form><div className="demo-hint">Demo mode — any email and password will sign in.</div></div><div className="login-foot">© 2025 RentSetu <span>·</span> Making renting simpler</div></main> }
+function Login({ onLogin, initialError }) {
+  const [error, setError] = useState(initialError || '')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+
+    const formData = new FormData(event.currentTarget)
+    try {
+      await onLogin(formData.get('email'), formData.get('password'))
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Sign in failed.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return <main className="login-page"><div className="login-brand"><div className="brand-mark">R</div><b>RentSetu</b></div><div className="login-card"><div className="login-symbol">R</div><h1>Welcome back</h1><p>Sign in to manage your properties</p><form onSubmit={handleSubmit}><Field label="Email address" name="email" type="email" placeholder="you@example.com" required /><Field label="Password" name="password" type="password" placeholder="Enter your password" required />{error && <p className="auth-error" role="alert">{error}</p>}<div className="login-options"><label><input type="checkbox" defaultChecked /> Remember me</label><button type="button" className="text-link" onClick={() => alert('Demo sign-in does not use password recovery.')}>Forgot password?</button></div><button className="primary-btn login-submit" disabled={submitting}>{submitting ? 'Signing in…' : <>Sign in <span>→</span></>}</button></form><div className="demo-hint">Demo mode — any email and password will sign in.</div></div><div className="login-foot">© 2025 RentSetu <span>·</span> Making renting simpler</div></main>
+}
 
 export default function App() {
-  const [page, setPage] = useState('Dashboard'), [loggedIn, setLoggedIn] = useState(true), [mobileOpen, setMobileOpen] = useState(false)
-  const [properties, setProperties] = useState(initialProperties), [tenants, setTenants] = useState(initialTenants), [modal, setModal] = useState(null)
-  const titles = { Dashboard: 'Dashboard', Properties: 'Properties', Tenants: 'Tenants', 'Rent & Payments': 'Rent & Payments', Maintenance: 'Maintenance requests' }
-  const subtitles = { Dashboard: 'Here’s what’s happening with your properties today.', Properties: 'Manage your properties and keep your portfolio up to date.', Tenants: 'Keep track of your tenants, leases, and rent status.', 'Rent & Payments': 'Review rent payments and track what’s outstanding.', Maintenance: 'Track and manage maintenance requests from your tenants.' }
+  const { user, loading, authError, login } = useAuth()
+
+  const [page, setPage] = useState('Dashboard')
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [properties, setProperties] = useState(initialProperties)
+  const [tenants, setTenants] = useState(initialTenants)
+  const [modal, setModal] = useState(null)
+
+  const titles = { Dashboard: 'Dashboard', Properties: 'Properties', Tenants: 'Tenants', 'Rent \u0026 Payments': 'Rent \u0026 Payments', Maintenance: 'Maintenance requests' }
+  const subtitles = { Dashboard: 'Here’s what’s happening with your properties today.', Properties: 'Manage your properties and keep your portfolio up to date.', Tenants: 'Keep track of your tenants, leases, and rent status.', 'Rent \u0026 Payments': 'Review rent payments and track what’s outstanding.', Maintenance: 'Track and manage maintenance requests from your tenants.' }
   const action = page === 'Properties' || page === 'Tenants' ? `Add ${page === 'Properties' ? 'property' : 'tenant'}` : null
-  function save(data) { if (modal === 'property') setProperties(p => [...p, { ...data, id: Date.now(), units: Number(data.units), occupied: Number(data.occupied), rent: Number(data.rent) }]); else setTenants(t => [...t, { ...data, id: Date.now(), lease: `${new Date(data.leaseStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} – ${new Date(data.leaseEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, rentStatus: 'Due' }]) }
-  if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />
-  return <div className="app-shell"><Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} /><main className="main"><Header title={titles[page]} subtitle={subtitles[page]} action={action} onAction={() => setModal(page === 'Properties' ? 'property' : 'tenant')} onMenu={() => setMobileOpen(true)} /><div className="content">{page === 'Dashboard' && <Dashboard properties={properties} tenants={tenants} setPage={setPage} />}{page === 'Properties' && <Properties items={properties} onAdd={() => setModal('property')} />}{page === 'Tenants' && <Tenants items={tenants} onAdd={() => setModal('tenant')} />}{page === 'Rent & Payments' && <Payments />}{page === 'Maintenance' && <Maintenance />}</div><footer>© 2025 RentSetu <span>·</span> Made for simpler property management</footer></main>{modal && <Modal type={modal} close={() => setModal(null)} submit={save} properties={properties} />}</div>
+
+  function save(data) {
+    if (modal === 'property') {
+      setProperties(p => [...p, { ...data, id: Date.now(), units: Number(data.units), occupied: Number(data.occupied), rent: Number(data.rent) }])
+    } else {
+      setTenants(t => [...t, { ...data, id: Date.now(), lease: `${new Date(data.leaseStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} – ${new Date(data.leaseEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, rentStatus: 'Due' }])
+    }
+  }
+
+  if (loading) return <main className="login-page"><p role="status">Checking your session…</p></main>
+  if (!user) {
+    return <Login initialError={authError} onLogin={login} />
+  }
+  return (
+    <div className="app-shell">
+      <Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+      <main className="main">
+        <Header title={titles[page]} subtitle={subtitles[page]} action={action} onAction={() => setModal(page === 'Properties' ? 'property' : 'tenant')} onMenu={() => setMobileOpen(true)} />
+        <div className="content">
+          {page === 'Dashboard' && <Dashboard properties={properties} tenants={tenants} setPage={setPage} />}
+          {page === 'Properties' && <Properties items={properties} onAdd={() => setModal('property')} />}
+          {page === 'Tenants' && <Tenants items={tenants} onAdd={() => setModal('tenant')} />}
+          {page === 'Rent \u0026 Payments' && <Payments />}
+          {page === 'Maintenance' && <Maintenance />}
+        </div>
+        <footer>© 2025 RentSetu <span>·</span> Made for simpler property management</footer>
+      </main>
+      {modal && <Modal type={modal} close={() => setModal(null)} submit={save} properties={properties} />}
+    </div>
+  )
 }

@@ -1,6 +1,6 @@
 # RentSetu backend foundation
 
-Node.js 20+, Express, Prisma 6, and PostgreSQL foundation for the RentSetu monorepo. This part owns setup, schema, migrations, seed data, shared middleware/utilities, the dashboard, API documentation, and deployment notes. Authentication routes and property, unit, tenant, lease, payment, and maintenance CRUD routes are intentionally placeholders for the assigned teammates.
+Node.js 20+, Express, Prisma 6, and PostgreSQL backend for the RentSetu monorepo. Authentication and dashboard APIs are implemented. Property, unit, tenant, lease, payment, and maintenance CRUD routes remain placeholders for their assigned teammates.
 
 ## Prerequisites and setup
 
@@ -30,7 +30,7 @@ The API listens at `http://localhost:8000`; Swagger UI is at `http://localhost:8
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | `postgresql://postgres:postgres@localhost:5432/rentsetu?schema=public` | PostgreSQL connection string |
 | `JWT_SECRET` | Yes | Set a private 32+ character value | Verifies bearer tokens |
-| `JWT_EXPIRES_IN` | No | `7d` | Shared token lifetime setting for the auth teammate |
+| `JWT_EXPIRES_IN` | No | `7d` | JWT lifetime for authentication tokens |
 | `PORT` | No | `8000` | HTTP port |
 | `CLIENT_URL` | No | `http://localhost:5173` | Single allowed browser origin; credentials are enabled |
 | `NODE_ENV` | No | `development` | Runtime mode; dev headers and destructive reseed are dev-only |
@@ -43,6 +43,7 @@ Never commit `.env`. `.env.example` is safe to commit.
 | --- | --- |
 | `npm run dev` | Start with nodemon |
 | `npm start` | Start the production server |
+| `npm test` | Run backend authentication unit tests |
 | `npm run db:generate` | Generate Prisma Client |
 | `npm run db:migrate` | Run `prisma migrate dev` |
 | `npm run db:deploy` | Apply committed migrations in deployment |
@@ -51,9 +52,13 @@ Never commit `.env`. `.env.example` is safe to commit.
 
 ## API and responses
 
-Successful responses use `{ "success": true, "data": ..., "message?": ..., "meta?": ... }`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details?": ... } }`. Validation details contain a field path and message. Dashboard routes accept `Authorization: Bearer <JWT>`; the temporary development fallback accepts `x-dev-user-id` and `x-dev-user-role` only when `NODE_ENV=development`.
+Successful responses use `{ "success": true, "data": ..., "message?": ..., "meta?": ... }`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details?": ... } }`. Validation details contain a field path and message. Protected routes accept `Authorization: Bearer <JWT>`; the temporary development fallback accepts `x-dev-user-id` and `x-dev-user-role` only when `NODE_ENV=development`.
 
 - `GET /api/health` — health status and timestamp.
+- `POST /api/auth/register` — create a landlord account. Public registration cannot assign manager or tenant roles.
+- `POST /api/auth/login` — verify credentials and return a bearer token.
+- `GET /api/auth/me` — return the authenticated user.
+- `POST /api/auth/change-password` — change the authenticated user's password.
 - `GET /api/dashboard/landlord` — landlord/manager portfolio summary, occupancy, collected and expected rent, overdue summary, open maintenance count, recent payments, and six-month collection series.
 - `GET /api/dashboard/tenant` — signed-in tenant active lease, rent, next due date, current billing status, last payment, and open maintenance count.
 
@@ -61,13 +66,13 @@ The landlord dashboard scopes every property-related query by `ownerId` for land
 
 ### Frontend inspection snapshot and field-name mapping
 
-The frontend has six screens: Dashboard, Properties, Tenants, Rent & Payments, Maintenance, and Login. It contains no HTTP calls. `src/services/api.js` exports `getProperties`, `getTenants`, `getPayments`, and `getMaintenanceRequests`; each returns local mock objects. The data object's fields are:
+The frontend has six screens: Dashboard, Properties, Tenants, Rent & Payments, Maintenance, and Login. Login has an auth service in `src/services/auth.js`; it uses mock behavior by default and can call these backend auth endpoints when `VITE_USE_MOCK_DATA=false`. Property, tenant, payment, and maintenance pages still use local mock objects through `src/services/api.js`. The data object's fields are:
 
 - `initialProperties`: `id`, `name`, `address`, `type`, `units`, `occupied`, `rent`.
 - `initialTenants`: `id`, `name`, `email`, `phone`, `property`, `unit`, `lease`, `rentStatus`.
 - `payments`: `id`, `tenant`, `property`, `amount`, `due`, `paid`, `status`.
 - `requests`: `id`, `tenant`, `property`, `issue`, `date`, `status`.
-- Dashboard summary cards, trend values, and chart labels are currently hardcoded in `src/App.jsx`; the Login screen accepts any nonempty email/password and does not call an auth endpoint.
+- Dashboard summary cards, trend values, and chart labels are currently hardcoded in `src/App.jsx`.
 
 The UI uses denormalized display fields, while this foundation follows the requested normalized schema:
 
@@ -77,7 +82,7 @@ The UI uses denormalized display fields, while this foundation follows the reque
 - Maintenance mocks use `issue` and `date`; persistence uses `title`, `description`, and `createdAt`. A future maintenance API can expose display aliases without changing the history-preserving model.
 - The dashboard page currently displays fixed sample totals/chart labels. The dashboard endpoints return calculated values using the prompt's API field names (`totalProperties`, `rentCollectedThisMonth`, `overdueCount`, and so on). `recentPayments` includes presentation fields `tenant`, `property`, `unit`, `amount`, `due`, `paid`, and computed `status` alongside canonical IDs and `billingMonth`. The frontend must be connected to those fields in a later integration step.
 
-This is the only current mismatch: API reads/writes do not exist in the frontend yet, and its demo data is presentation-shaped. The backend uses the required schema names and provides the dashboard response fields requested in this task rather than persisting derived UI strings/statuses.
+Rental-resource API reads/writes do not exist in the frontend yet, and its demo data is presentation-shaped. Authentication can call the backend when mock mode is disabled. The backend uses the required schema names and provides the dashboard response fields requested in this task rather than persisting derived UI strings/statuses.
 
 ## Seed accounts
 
@@ -126,7 +131,7 @@ backend/
 | Owner | Area |
 | --- | --- |
 | Lead | Setup, `schema.prisma`, migrations, seed, shared utilities, dashboard, docs, deployment |
-| Person 2 | Auth endpoints and real authentication middleware; replace the clearly marked stub |
+| Person 2 | Auth endpoints, real authentication middleware, auth tests, and auth API documentation |
 | Person 3 | Properties, units, tenants, and leases |
 | Person 4 | Payments and maintenance |
 

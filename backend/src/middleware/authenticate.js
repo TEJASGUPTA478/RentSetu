@@ -12,19 +12,19 @@ export function authenticate(req, res, next) {
       const id = typeof payload === 'object' ? payload.id ?? payload.sub : undefined
       const role = typeof payload === 'object' ? payload.role : undefined
       if (!id || !role) throw new ApiError(401, 'UNAUTHORIZED', 'Token is missing a user identity')
-      req.user = { id, role }
+      req.user = { id, role, email: payload.email }
       return next()
     } catch (error) {
       return next(error instanceof ApiError ? error : ApiError.unauthorized('Invalid or expired bearer token'))
     }
   }
 
-  // TODO(Person 2): replace this development stub with the shared auth implementation.
+  // Development header fallback for testing and seed demo requests
   if (env.NODE_ENV === 'development') {
     const id = req.get('x-dev-user-id')
     const role = req.get('x-dev-user-role')
     if (id && ['LANDLORD', 'MANAGER', 'TENANT'].includes(role)) {
-      req.user = { id, role }
+      req.user = { id, role, email: req.get('x-dev-user-email') }
       return next()
     }
   }

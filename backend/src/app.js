@@ -15,12 +15,12 @@ const app = express()
 const openapi = swaggerJsdoc({
   definition: {
     openapi: '3.0.3',
-    info: { title: 'RentSetu API', version: '1.0.0', description: 'Foundation and dashboard API for the RentSetu rental-management app.' },
+    info: { title: 'RentSetu API', version: '1.0.0', description: 'Authentication and dashboard API for the RentSetu rental-management app.' },
     servers: [{ url: `http://localhost:${env.PORT}`, description: 'Local development' }],
     tags: [
       { name: 'Health', description: 'Service health' },
       { name: 'Dashboard', description: 'Role-scoped dashboard summaries' },
-      { name: 'Auth', description: 'Person 2: add authentication endpoints here' },
+      { name: 'Auth', description: 'Registration, sign-in, and authenticated account endpoints' },
       { name: 'Properties and Units', description: 'Person 3: add property and unit endpoints here' },
       { name: 'Tenants and Leases', description: 'Person 3: add tenant and lease endpoints here' },
       { name: 'Payments', description: 'Person 4: add payment endpoints here' },
@@ -31,6 +31,9 @@ const openapi = swaggerJsdoc({
       schemas: {
         SuccessEnvelope: { type: 'object', required: ['success', 'data'], properties: { success: { type: 'boolean', example: true }, data: { type: 'object' }, message: { type: 'string' }, meta: { type: 'object' } } },
         ErrorEnvelope: { type: 'object', required: ['success', 'error'], properties: { success: { type: 'boolean', example: false }, error: { type: 'object', required: ['code', 'message'], properties: { code: { type: 'string' }, message: { type: 'string' }, details: { type: 'array', items: { type: 'object' } } } } } },
+        RegisterRequest: { type: 'object', required: ['name', 'email', 'password'], properties: { name: { type: 'string', minLength: 2, maxLength: 100 }, email: { type: 'string', format: 'email' }, password: { type: 'string', minLength: 8, maxLength: 100 }, role: { type: 'string', enum: ['LANDLORD'], default: 'LANDLORD' } } },
+        LoginRequest: { type: 'object', required: ['email', 'password'], properties: { email: { type: 'string', format: 'email' }, password: { type: 'string', minLength: 1 } } },
+        ChangePasswordRequest: { type: 'object', required: ['currentPassword', 'newPassword'], properties: { currentPassword: { type: 'string', minLength: 1 }, newPassword: { type: 'string', minLength: 8, maxLength: 100 } } },
         LandlordDashboard: { type: 'object', required: ['totalProperties', 'totalUnits', 'occupiedUnits', 'vacantUnits', 'occupancyRate', 'rentCollectedThisMonth', 'expectedRentThisMonth', 'overdueCount', 'overdueAmount', 'openMaintenanceRequests', 'recentPayments', 'rentCollectedByMonth'], properties: {
           totalProperties: { type: 'integer' }, totalUnits: { type: 'integer' }, occupiedUnits: { type: 'integer' }, vacantUnits: { type: 'integer' }, occupancyRate: { type: 'number' },
           rentCollectedThisMonth: { type: 'number' }, expectedRentThisMonth: { type: 'number' }, overdueCount: { type: 'integer' }, overdueAmount: { type: 'number' }, openMaintenanceRequests: { type: 'integer' },
@@ -46,6 +49,50 @@ const openapi = swaggerJsdoc({
     },
     paths: {
       '/api/health': { get: { tags: ['Health'], summary: 'Check API health', responses: { 200: { description: 'Service is available', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } } } } },
+      '/api/auth/register': {
+        post: {
+          tags: ['Auth'], summary: 'Register a landlord account',
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/RegisterRequest' } } } },
+          responses: {
+            201: { description: 'Account created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            400: { description: 'Invalid registration details', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            409: { description: 'Email is already registered', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/auth/login': {
+        post: {
+          tags: ['Auth'], summary: 'Sign in and receive a bearer token',
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginRequest' } } } },
+          responses: {
+            200: { description: 'Signed in', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            400: { description: 'Invalid request', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            401: { description: 'Invalid email or password', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            403: { description: 'Account is deactivated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/auth/me': {
+        get: {
+          tags: ['Auth'], summary: 'Get the authenticated user', security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Authenticated user', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            401: { description: 'Authentication required', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/auth/change-password': {
+        post: {
+          tags: ['Auth'], summary: 'Change the authenticated user password', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ChangePasswordRequest' } } } },
+          responses: {
+            200: { description: 'Password changed', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            400: { description: 'Invalid request or current password', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            401: { description: 'Authentication required', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            404: { description: 'User not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
       '/api/dashboard/landlord': {
         get: {
           tags: ['Dashboard'], summary: 'Get a landlord or manager dashboard', security: [{ bearerAuth: [] }],
