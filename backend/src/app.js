@@ -45,6 +45,58 @@ const openapi = swaggerJsdoc({
           monthlyRent: { type: 'number' }, nextDueDate: { type: 'string', format: 'date', nullable: true }, currentMonthStatus: { type: 'string', enum: ['PAID', 'PENDING', 'OVERDUE'] },
           lastPayment: { type: 'object', nullable: true }, openMaintenanceRequestCount: { type: 'integer' },
         } },
+        CreatePropertyRequest: {
+          type: 'object',
+          required: ['name', 'address', 'city', 'state', 'pincode', 'type'],
+          properties: {
+            name: { type: 'string', example: 'Maple Residency' },
+            address: { type: 'string', example: '24, 12th Main Road' },
+            city: { type: 'string', example: 'Bengaluru' },
+            state: { type: 'string', example: 'Karnataka' },
+            pincode: { type: 'string', example: '560038' },
+            type: { type: 'string', example: 'Apartment' },
+            managerId: { type: 'string', format: 'uuid', nullable: true },
+          },
+        },
+        CreateUnitRequest: {
+          type: 'object',
+          required: ['propertyId', 'unitNumber', 'rent', 'bedrooms'],
+          properties: {
+            propertyId: { type: 'string', format: 'uuid' },
+            unitNumber: { type: 'string', example: 'A-101' },
+            rent: { type: 'number', example: 25000 },
+            bedrooms: { type: 'integer', example: 2 },
+            status: { type: 'string', enum: ['VACANT', 'OCCUPIED'], default: 'VACANT' },
+          },
+        },
+        CreateTenantRequest: {
+          type: 'object',
+          required: ['name', 'email', 'phone'],
+          properties: {
+            name: { type: 'string', example: 'Aarav Sharma' },
+            email: { type: 'string', format: 'email', example: 'aarav.tenant@example.com' },
+            phone: { type: 'string', example: '+91 98765 43210' },
+            password: { type: 'string', example: 'Password@123' },
+            emergencyContactName: { type: 'string' },
+            emergencyContactPhone: { type: 'string' },
+            idProofType: { type: 'string' },
+            idProofNumber: { type: 'string' },
+          },
+        },
+        CreateLeaseRequest: {
+          type: 'object',
+          required: ['unitId', 'tenantId', 'startDate', 'endDate', 'monthlyRent', 'securityDeposit', 'dueDay'],
+          properties: {
+            unitId: { type: 'string', format: 'uuid' },
+            tenantId: { type: 'string', format: 'uuid' },
+            startDate: { type: 'string', format: 'date' },
+            endDate: { type: 'string', format: 'date' },
+            monthlyRent: { type: 'number', example: 25000 },
+            securityDeposit: { type: 'number', example: 50000 },
+            dueDay: { type: 'integer', minimum: 1, maximum: 28, example: 5 },
+            status: { type: 'string', enum: ['ACTIVE', 'ENDED', 'TERMINATED'], default: 'ACTIVE' },
+          },
+        },
       },
     },
     paths: {
@@ -113,6 +165,205 @@ const openapi = swaggerJsdoc({
           },
         },
       },
+      '/api/properties': {
+        get: {
+          tags: ['Properties and Units'], summary: 'List properties for authenticated landlord/manager', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'search', schema: { type: 'string' } },
+            { in: 'query', name: 'city', schema: { type: 'string' } },
+            { in: 'query', name: 'type', schema: { type: 'string' } },
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 10 } },
+          ],
+          responses: {
+            200: { description: 'Properties list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            401: { description: 'Authentication required', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Properties and Units'], summary: 'Create a property', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePropertyRequest' } } } },
+          responses: {
+            201: { description: 'Property created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            400: { description: 'Invalid data', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+            401: { description: 'Authentication required', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/properties/{id}': {
+        get: {
+          tags: ['Properties and Units'], summary: 'Get property by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Property details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            404: { description: 'Property not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+        put: {
+          tags: ['Properties and Units'], summary: 'Update property', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+          responses: {
+            200: { description: 'Property updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            404: { description: 'Property not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+        delete: {
+          tags: ['Properties and Units'], summary: 'Delete property', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Property deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            400: { description: 'Cannot delete property with units', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/units': {
+        get: {
+          tags: ['Properties and Units'], summary: 'List units', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'propertyId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'status', schema: { type: 'string', enum: ['VACANT', 'OCCUPIED'] } },
+            { in: 'query', name: 'search', schema: { type: 'string' } },
+            { in: 'query', name: 'page', schema: { type: 'integer' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer' } },
+          ],
+          responses: {
+            200: { description: 'Units list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Properties and Units'], summary: 'Create a unit', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateUnitRequest' } } } },
+          responses: {
+            201: { description: 'Unit created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            409: { description: 'Duplicate unit number', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/units/{id}': {
+        get: {
+          tags: ['Properties and Units'], summary: 'Get unit by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Unit details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        put: {
+          tags: ['Properties and Units'], summary: 'Update unit', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+          responses: {
+            200: { description: 'Unit updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        delete: {
+          tags: ['Properties and Units'], summary: 'Delete unit', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Unit deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/tenants': {
+        get: {
+          tags: ['Tenants and Leases'], summary: 'List tenants', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'search', schema: { type: 'string' } },
+            { in: 'query', name: 'page', schema: { type: 'integer' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer' } },
+          ],
+          responses: {
+            200: { description: 'Tenants list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Tenants and Leases'], summary: 'Create a tenant profile and account', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateTenantRequest' } } } },
+          responses: {
+            201: { description: 'Tenant created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/tenants/me': {
+        get: {
+          tags: ['Tenants and Leases'], summary: 'Get signed-in tenant profile', security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Tenant profile', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/tenants/{id}': {
+        get: {
+          tags: ['Tenants and Leases'], summary: 'Get tenant profile by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Tenant details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        put: {
+          tags: ['Tenants and Leases'], summary: 'Update tenant profile', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+          responses: {
+            200: { description: 'Tenant updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        delete: {
+          tags: ['Tenants and Leases'], summary: 'Delete tenant profile', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Tenant deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/leases': {
+        get: {
+          tags: ['Tenants and Leases'], summary: 'List leases', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'propertyId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'unitId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'tenantId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'status', schema: { type: 'string', enum: ['ACTIVE', 'ENDED', 'TERMINATED'] } },
+            { in: 'query', name: 'page', schema: { type: 'integer' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer' } },
+          ],
+          responses: {
+            200: { description: 'Leases list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Tenants and Leases'], summary: 'Create a lease', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateLeaseRequest' } } } },
+          responses: {
+            201: { description: 'Lease created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/leases/{id}': {
+        get: {
+          tags: ['Tenants and Leases'], summary: 'Get lease by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Lease details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        put: {
+          tags: ['Tenants and Leases'], summary: 'Update lease or terminate', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+          responses: {
+            200: { description: 'Lease updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        delete: {
+          tags: ['Tenants and Leases'], summary: 'Delete lease', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Lease deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+
     },
   },
   apis: [],
