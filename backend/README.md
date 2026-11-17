@@ -118,7 +118,7 @@ curl -H 'x-dev-user-id: <TENANT_ID printed by seed>' \
 backend/
   prisma/                 schema, migrations, seed
   src/config/             validated env and Prisma singleton
-  src/middleware/         auth stubs, validation, errors, 404
+  src/middleware/         authentication, role authorization, validation, errors, 404
   src/modules/             teammate modules and dashboard implementation
   src/routes/              API router composition
   src/utils/               errors, responses, pagination, payment status
