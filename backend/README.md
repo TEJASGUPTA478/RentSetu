@@ -1,6 +1,6 @@
 # RentSetu backend foundation
 
-Node.js 20+, Express, Prisma 6, and PostgreSQL backend for the RentSetu monorepo. Authentication and dashboard APIs are implemented. Property, unit, tenant, lease, payment, and maintenance CRUD routes remain placeholders for their assigned teammates.
+Node.js 20+, Express, Prisma 6, and PostgreSQL backend for the RentSetu monorepo. Authentication, dashboard, properties, units, tenants, leases, payments, and maintenance APIs are fully implemented.
 
 ## Prerequisites and setup
 
@@ -61,6 +61,65 @@ Successful responses use `{ "success": true, "data": ..., "message?": ..., "meta
 - `POST /api/auth/change-password` — change the authenticated user's password.
 - `GET /api/dashboard/landlord` — landlord/manager portfolio summary, occupancy, collected and expected rent, overdue summary, open maintenance count, recent payments, and six-month collection series.
 - `GET /api/dashboard/tenant` — signed-in tenant active lease, rent, next due date, current billing status, last payment, and open maintenance count.
+
+### Payments API (`/api/payments`)
+
+All routes require authentication (`Authorization: Bearer <token>` or dev headers in development).
+
+| Method | Endpoint | Allowed Roles | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/payments` | `LANDLORD`, `MANAGER`, `TENANT` | List payments scoped to the user (landlords see owned properties, managers see managed properties, tenants see their own history). Supports filters: `leaseId`, `propertyId`, `tenantId`, `method`, `billingMonth`, `startDate`, `endDate`, `page`, `limit`. |
+| `POST` | `/api/payments` | `LANDLORD`, `MANAGER` | Record a payment for a lease. Validates amounts, dates, and payment method (`CASH`, `UPI`, `BANK_TRANSFER`, `CHEQUE`, `CARD`). Enforces one payment per lease per billing month with a 409 `CONFLICT` response. |
+| `GET` | `/api/payments/:id` | `LANDLORD`, `MANAGER`, `TENANT` | View payment details by UUID. Enforces ownership/tenant isolation (403 `FORBIDDEN` if unauthorized). |
+| `PUT` / `PATCH` | `/api/payments/:id` | `LANDLORD`, `MANAGER` | Update payment details (`amount`, `method`, `paidOn`, `notes`, `billingMonth`). Rejects unauthorized edits or monthly payment conflicts. |
+
+**Payment Request & Response Shapes:**
+
+- `POST /api/payments` body:
+  ```json
+  {
+    "leaseId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "billingMonth": "2026-11-01",
+    "amount": 25000,
+    "method": "UPI",
+    "paidOn": "2026-11-04",
+    "notes": "Rent payment for November"
+  }
+  ```
+- Payment item format: includes canonical fields (`id`, `leaseId`, `billingMonth`, `amount`, `method`, `paidOn`, `notes`, `createdAt`, `updatedAt`, `lease` details) alongside presentation convenience fields (`due`, `paid`, `status: "Paid"`, `tenant`, `property`, `unit`).
+- Error codes: `400 VALIDATION_ERROR` (invalid input), `401 UNAUTHORIZED`, `403 FORBIDDEN` (ownership mismatch or tenant attempting to record payment), `404 NOT_FOUND` (lease/payment not found), `409 CONFLICT` (duplicate payment for lease and billing month).
+
+### Maintenance API (`/api/maintenance`)
+
+All routes require authentication.
+
+| Method | Endpoint | Allowed Roles | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/maintenance` | `LANDLORD`, `MANAGER`, `TENANT` | List maintenance requests scoped to user portfolio or tenant profile. Supports filters: `status`, `priority`, `unitId`, `propertyId`, `tenantId`, `leaseId`, `page`, `limit`. |
+| `POST` | `/api/maintenance` | `TENANT`, `LANDLORD`, `MANAGER` | Create a maintenance request. Tenants can create requests for their leased unit; landlords/managers can create for units in their portfolio. Priority defaults to `MEDIUM` if omitted. Status starts at `OPEN`. |
+| `GET` | `/api/maintenance/:id` | `LANDLORD`, `MANAGER`, `TENANT` | View maintenance request details. Enforces ownership and tenant isolation. |
+| `PATCH` / `PUT` | `/api/maintenance/:id` | `LANDLORD`, `MANAGER` | Update maintenance request status (`OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`) and/or `priority` (`LOW`, `MEDIUM`, `HIGH`, `URGENT`). Automatically sets `resolvedAt` timestamp when resolved or closed, and clears `resolvedAt` to `null` when reopened to `OPEN` or `IN_PROGRESS`. |
+| `DELETE` | `/api/maintenance/:id` | `LANDLORD`, `MANAGER`, `TENANT` | Rejects deletion with 400 `BAD_REQUEST` to preserve maintenance audit history. |
+
+**Maintenance Request & Response Shapes:**
+
+- `POST /api/maintenance` body:
+  ```json
+  {
+    "title": "Water leakage in bathroom",
+    "description": "Pipe beneath sink has a continuous drip.",
+    "priority": "HIGH",
+    "unitId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  }
+  ```
+- `PATCH /api/maintenance/:id` body:
+  ```json
+  {
+    "status": "RESOLVED",
+    "priority": "HIGH"
+  }
+  ```
+- Error codes: `400 VALIDATION_ERROR` / `BAD_REQUEST` (invalid payload or deletion attempt), `401 UNAUTHORIZED`, `403 FORBIDDEN` (ownership mismatch or tenant attempting status change), `404 NOT_FOUND` (unit or maintenance request not found).
 
 The landlord dashboard scopes every property-related query by `ownerId` for landlords or `managerId` for managers. Tenant scope comes from the authenticated user's tenant profile. No dashboard endpoint accepts client-supplied ownership IDs.
 

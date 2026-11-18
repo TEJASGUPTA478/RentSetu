@@ -23,8 +23,8 @@ const openapi = swaggerJsdoc({
       { name: 'Auth', description: 'Registration, sign-in, and authenticated account endpoints' },
       { name: 'Properties and Units', description: 'Person 3: add property and unit endpoints here' },
       { name: 'Tenants and Leases', description: 'Person 3: add tenant and lease endpoints here' },
-      { name: 'Payments', description: 'Person 4: add payment endpoints here' },
-      { name: 'Maintenance', description: 'Person 4: add maintenance endpoints here' },
+      { name: 'Payments', description: 'Payment listing, detail, and recording endpoints' },
+      { name: 'Maintenance', description: 'Maintenance request listing, creation, and status management endpoints' },
     ],
     components: {
       securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
@@ -95,6 +95,49 @@ const openapi = swaggerJsdoc({
             securityDeposit: { type: 'number', example: 50000 },
             dueDay: { type: 'integer', minimum: 1, maximum: 28, example: 5 },
             status: { type: 'string', enum: ['ACTIVE', 'ENDED', 'TERMINATED'], default: 'ACTIVE' },
+          },
+        },
+        CreatePaymentRequest: {
+          type: 'object',
+          required: ['leaseId', 'billingMonth', 'amount', 'method'],
+          properties: {
+            leaseId: { type: 'string', format: 'uuid' },
+            billingMonth: { type: 'string', format: 'date', example: '2026-11-01' },
+            amount: { type: 'number', example: 25000 },
+            method: { type: 'string', enum: ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD'], example: 'UPI' },
+            paidOn: { type: 'string', format: 'date', example: '2026-11-04' },
+            notes: { type: 'string', example: 'Rent for November' },
+          },
+        },
+        UpdatePaymentRequest: {
+          type: 'object',
+          properties: {
+            amount: { type: 'number', example: 25000 },
+            method: { type: 'string', enum: ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD'] },
+            billingMonth: { type: 'string', format: 'date' },
+            paidOn: { type: 'string', format: 'date' },
+            notes: { type: 'string' },
+          },
+        },
+        CreateMaintenanceRequest: {
+          type: 'object',
+          required: ['title', 'description'],
+          properties: {
+            title: { type: 'string', example: 'Kitchen sink tap leaking' },
+            description: { type: 'string', example: 'Tap drips continuously under the counter.' },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
+            unitId: { type: 'string', format: 'uuid' },
+            leaseId: { type: 'string', format: 'uuid' },
+            tenantId: { type: 'string', format: 'uuid' },
+          },
+        },
+        UpdateMaintenanceRequest: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
+            title: { type: 'string' },
+            description: { type: 'string' },
           },
         },
       },
@@ -360,6 +403,97 @@ const openapi = swaggerJsdoc({
           parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
           responses: {
             200: { description: 'Lease deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/payments': {
+        get: {
+          tags: ['Payments'], summary: 'List payments', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'leaseId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'propertyId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'tenantId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'method', schema: { type: 'string', enum: ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD'] } },
+            { in: 'query', name: 'billingMonth', schema: { type: 'string', format: 'date' } },
+            { in: 'query', name: 'page', schema: { type: 'integer' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer' } },
+          ],
+          responses: {
+            200: { description: 'Payments list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Payments'], summary: 'Record a payment', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePaymentRequest' } } } },
+          responses: {
+            201: { description: 'Payment recorded', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            409: { description: 'Duplicate payment for lease and billing month', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+      },
+      '/api/payments/{id}': {
+        get: {
+          tags: ['Payments'], summary: 'Get payment by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Payment details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            404: { description: 'Payment not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+        put: {
+          tags: ['Payments'], summary: 'Update payment', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdatePaymentRequest' } } } },
+          responses: {
+            200: { description: 'Payment updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/maintenance': {
+        get: {
+          tags: ['Maintenance'], summary: 'List maintenance requests', security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'status', schema: { type: 'string', enum: ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] } },
+            { in: 'query', name: 'priority', schema: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] } },
+            { in: 'query', name: 'unitId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'propertyId', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'page', schema: { type: 'integer' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer' } },
+          ],
+          responses: {
+            200: { description: 'Maintenance requests list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        post: {
+          tags: ['Maintenance'], summary: 'Create maintenance request', security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateMaintenanceRequest' } } } },
+          responses: {
+            201: { description: 'Maintenance request created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+      },
+      '/api/maintenance/{id}': {
+        get: {
+          tags: ['Maintenance'], summary: 'Get maintenance request by ID', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Maintenance request details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+            404: { description: 'Maintenance request not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
+          },
+        },
+        patch: {
+          tags: ['Maintenance'], summary: 'Update maintenance request status or priority', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateMaintenanceRequest' } } } },
+          responses: {
+            200: { description: 'Maintenance request updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } },
+          },
+        },
+        delete: {
+          tags: ['Maintenance'], summary: 'Delete maintenance request (rejected to preserve history)', security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            400: { description: 'Cannot delete maintenance request to preserve history', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } },
           },
         },
       },
