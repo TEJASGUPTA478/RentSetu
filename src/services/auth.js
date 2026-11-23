@@ -1,7 +1,11 @@
 import { API_BASE_URL, useMockData } from './api.js'
 
 export async function register(data) {
-  if (useMockData) return { user: data, token: 'mock-token' }
+  if (useMockData) {
+    const user = { id: 'mock-id', name: data.name, email: data.email, role: 'LANDLORD' }
+    localStorage.setItem('rentsetu-demo-user', JSON.stringify(user))
+    return { user, token: 'mock-token' }
+  }
   const resp = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -13,7 +17,11 @@ export async function register(data) {
 }
 
 export async function login(data) {
-  if (useMockData) return { user: { email: data.email, role: 'LANDLORD' }, token: 'mock-token' }
+  if (useMockData) {
+    const user = { id: `demo-${data.role || 'LANDLORD'}`, name: data.email.split('@')[0], email: data.email, role: data.role || 'LANDLORD' }
+    localStorage.setItem('rentsetu-demo-user', JSON.stringify(user))
+    return { user, token: 'mock-token' }
+  }
   const resp = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -25,7 +33,7 @@ export async function login(data) {
 }
 
 export async function getMe(token) {
-  if (useMockData) return { id: 'mock-id', name: 'Mock User', role: 'LANDLORD' }
+  if (useMockData) return JSON.parse(localStorage.getItem('rentsetu-demo-user') || '{"id":"mock-id","name":"Demo User","role":"LANDLORD"}')
   const resp = await fetch(`${API_BASE_URL}/auth/me`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },

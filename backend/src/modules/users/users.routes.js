@@ -1,3 +1,11 @@
 import { Router } from 'express'
-// TODO: add user routes when their owner begins that module.
-export default Router()
+import { authenticate } from '../../middleware/authenticate.js'
+import { authorize } from '../../middleware/authorize.js'
+import { asyncHandler } from '../../utils/asyncHandler.js'
+import { listManagers } from './users.controller.js'
+
+const router = Router()
+router.use(authenticate)
+router.get('/managers', authorize('LANDLORD'), asyncHandler(listManagers))
+
+export default router

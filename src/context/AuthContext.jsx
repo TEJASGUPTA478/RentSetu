@@ -40,8 +40,8 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = async (email, password) => {
-    const result = await authApi.login({ email, password })
+  const login = async (email, password, role) => {
+    const result = await authApi.login({ email, password, role })
     localStorage.setItem('authToken', result.token)
     setUser(result.user)
     setToken(result.token)
@@ -52,6 +52,7 @@ export function AuthProvider({ children }) {
     setUser(null)
     setToken(null)
     localStorage.removeItem('authToken')
+    localStorage.removeItem('rentsetu-demo-user')
   }
 
   const register = async (data) => {

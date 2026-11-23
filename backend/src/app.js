@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit'
 import swaggerUi from 'swagger-ui-express'
 import swaggerJsdoc from 'swagger-jsdoc'
 import { env } from './config/env.js'
+import { prisma } from './config/prisma.js'
 import apiRouter from './routes/index.js'
 import { notFound } from './middleware/notFound.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -15,14 +16,15 @@ const app = express()
 const openapi = swaggerJsdoc({
   definition: {
     openapi: '3.0.3',
-    info: { title: 'RentSetu API', version: '1.0.0', description: 'Authentication and dashboard API for the RentSetu rental-management app.' },
+    info: { title: 'RentSetu API', version: '1.0.0', description: 'Authentication, portfolio, rent, and maintenance APIs for RentSetu.' },
     servers: [{ url: `http://localhost:${env.PORT}`, description: 'Local development' }],
     tags: [
       { name: 'Health', description: 'Service health' },
       { name: 'Dashboard', description: 'Role-scoped dashboard summaries' },
       { name: 'Auth', description: 'Registration, sign-in, and authenticated account endpoints' },
-      { name: 'Properties and Units', description: 'Person 3: add property and unit endpoints here' },
-      { name: 'Tenants and Leases', description: 'Person 3: add tenant and lease endpoints here' },
+      { name: 'Users', description: 'Role-scoped account lookups' },
+      { name: 'Properties and Units', description: 'Property and unit management' },
+      { name: 'Tenants and Leases', description: 'Tenant profiles and lease management' },
       { name: 'Payments', description: 'Payment listing, detail, and recording endpoints' },
       { name: 'Maintenance', description: 'Maintenance request listing, creation, and status management endpoints' },
     ],
@@ -144,6 +146,8 @@ const openapi = swaggerJsdoc({
     },
     paths: {
       '/api/health': { get: { tags: ['Health'], summary: 'Check API health', responses: { 200: { description: 'Service is available', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } } } } },
+      '/api/health/ready': { get: { tags: ['Health'], summary: 'Check API and database readiness', responses: { 200: { description: 'API and database are ready' }, 503: { description: 'Database is unavailable' } } } },
+      '/api/users/managers': { get: { tags: ['Users'], summary: 'List active managers available to the authenticated landlord', security: [{ bearerAuth: [] }], responses: { 200: { description: 'Manager accounts' }, 401: { description: 'Authentication required' }, 403: { description: 'Landlord role required' } } } },
       '/api/auth/register': {
         post: {
           tags: ['Auth'], summary: 'Register a landlord account',
@@ -511,6 +515,14 @@ app.use(express.json({ limit: '1mb' }))
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }))
 
 app.get('/api/health', (req, res) => sendSuccess(res, { status: 'ok', timestamp: new Date().toISOString() }))
+app.get('/api/health/ready', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    return sendSuccess(res, { status: 'ready', database: 'ok', timestamp: new Date().toISOString() })
+  } catch {
+    return res.status(503).json({ success: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'Database is not reachable' } })
+  }
+})
 // Swagger UI includes an inline bootstrap script; scope the CSP exception to docs only.
 app.use('/api/docs', (req, res, next) => { res.removeHeader('Content-Security-Policy'); next() }, swaggerUi.serve, swaggerUi.setup(openapi, { explorer: true }))
 app.use('/api', apiRouter)

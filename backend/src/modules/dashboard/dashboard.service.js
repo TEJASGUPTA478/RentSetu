@@ -38,13 +38,21 @@ export async function getLandlordDashboardData(user) {
       },
       _sum: { amount: true },
     }),
-    prisma.lease.findMany({ where: { ...activeLeaseWhere, startDate: { lte: now } }, select: { id: true, startDate: true, endDate: true, dueDay: true, monthlyRent: true } }),
+    prisma.lease.findMany({ where: { ...activeLeaseWhere, startDate: { lte: now } }, select: {
+      id: true, startDate: true, endDate: true, dueDay: true, monthlyRent: true,
+      tenant: { select: { user: { select: { id: true, name: true, email: true } } } },
+      unit: { select: { unitNumber: true, property: { select: { id: true, name: true } } } },
+    } }),
     prisma.maintenanceRequest.count({
       where: { status: { in: ['OPEN', 'IN_PROGRESS'] }, unit: { propertyId: { in: propertyIds } } },
     }),
   ])
 
-  const { overdueCount, overdueAmount } = await getOverdueSummary(prisma, overdue, now)
+  const { overdueCount, overdueAmount, overdueItems, outstandingItems } = await getOverdueSummary(prisma, overdue, now)
+  const formatOutstandingItem = item => {
+    const lease = overdue.find(candidate => candidate.id === item.leaseId)
+    return { ...item, tenant: lease?.tenant.user.name || 'Tenant', tenantId: lease?.tenant.user.id, property: `${lease?.unit.property.name || 'Property'} · ${lease?.unit.unitNumber || ''}`, propertyId: lease?.unit.property.id }
+  }
   const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1))
   const leaseIds = portfolioLeases.map(lease => lease.id)
   const [monthlyGroups, recent] = await Promise.all([
@@ -86,6 +94,8 @@ export async function getLandlordDashboardData(user) {
     expectedRentThisMonth: moneyNumber(expected._sum.monthlyRent),
     overdueCount,
     overdueAmount: Number(overdueAmount.toFixed(2)),
+    overdueItems: overdueItems.map(formatOutstandingItem),
+    outstandingItems: outstandingItems.map(formatOutstandingItem),
     openMaintenanceRequests,
     recentPayments: recent.map(payment => {
       const dueDate = getDueDate(payment.billingMonth.getUTCFullYear(), payment.billingMonth.getUTCMonth(), payment.lease.dueDay)

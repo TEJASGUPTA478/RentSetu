@@ -22,7 +22,7 @@ npm run db:seed
 npm run dev
 ```
 
-The API listens at `http://localhost:8000`; Swagger UI is at `http://localhost:8000/api/docs`. `GET /api/health` does not require a database query. `db:migrate` applies the checked-in initial schema migration and the partial-index migration in order.
+The API listens at `http://localhost:8000`; Swagger UI is at `http://localhost:8000/api/docs`. `GET /api/health` does not require a database query; `/api/health/ready` checks the database connection. `db:migrate` applies all checked-in schema and constraint migrations in order.
 
 ## Environment variables
 
@@ -54,11 +54,13 @@ Never commit `.env`. `.env.example` is safe to commit.
 
 Successful responses use `{ "success": true, "data": ..., "message?": ..., "meta?": ... }`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details?": ... } }`. Validation details contain a field path and message. Protected routes accept `Authorization: Bearer <JWT>`; the temporary development fallback accepts `x-dev-user-id` and `x-dev-user-role` only when `NODE_ENV=development`.
 
-- `GET /api/health` — health status and timestamp.
+- `GET /api/health` — API liveness status and timestamp (does not query PostgreSQL).
+- `GET /api/health/ready` — readiness status; returns 503 when PostgreSQL cannot be reached.
 - `POST /api/auth/register` — create a landlord account. Public registration cannot assign manager or tenant roles.
 - `POST /api/auth/login` — verify credentials and return a bearer token.
 - `GET /api/auth/me` — return the authenticated user.
 - `POST /api/auth/change-password` — change the authenticated user's password.
+- `GET /api/users/managers` — list active manager accounts for landlord property assignment.
 - `GET /api/dashboard/landlord` — landlord/manager portfolio summary, occupancy, collected and expected rent, overdue summary, open maintenance count, recent payments, and six-month collection series.
 - `GET /api/dashboard/tenant` — signed-in tenant active lease, rent, next due date, current billing status, last payment, and open maintenance count.
 
@@ -123,25 +125,13 @@ All routes require authentication.
 
 The landlord dashboard scopes every property-related query by `ownerId` for landlords or `managerId` for managers. Tenant scope comes from the authenticated user's tenant profile. No dashboard endpoint accepts client-supplied ownership IDs.
 
-### Frontend inspection snapshot and field-name mapping
+### Frontend integration
 
-The frontend has six screens: Dashboard, Properties, Tenants, Rent & Payments, Maintenance, and Login. Login has an auth service in `src/services/auth.js`; it uses mock behavior by default and can call these backend auth endpoints when `VITE_USE_MOCK_DATA=false`. Property, tenant, payment, and maintenance pages still use local mock objects through `src/services/api.js`. The data object's fields are:
+The React frontend uses `src/services/api.js` as its data boundary. By default it runs a browser-persistent demo mode for classroom presentations. Set `VITE_USE_MOCK_DATA=false` and `VITE_API_BASE_URL` to use authenticated backend requests for dashboards, properties, units, tenants, leases, payments, and maintenance.
 
-- `initialProperties`: `id`, `name`, `address`, `type`, `units`, `occupied`, `rent`.
-- `initialTenants`: `id`, `name`, `email`, `phone`, `property`, `unit`, `lease`, `rentStatus`.
-- `payments`: `id`, `tenant`, `property`, `amount`, `due`, `paid`, `status`.
-- `requests`: `id`, `tenant`, `property`, `issue`, `date`, `status`.
-- Dashboard summary cards, trend values, and chart labels are currently hardcoded in `src/App.jsx`.
+The UI maps normalized API records into presentation fields such as tenant/property labels and payment due status. Dashboard amounts and rent status come from API data in live mode. Property creation creates the property and its units; tenant creation can create an active lease for a selected vacant unit. Tenant accounts are created with the password entered in the tenant form.
 
-The UI uses denormalized display fields, while this foundation follows the requested normalized schema:
-
-- Tenant mock `name`, `email`, `phone` map to `User.name`, `User.email`, and `TenantProfile.phone`; mock `property`, `unit`, and `lease` are joined from Property, Unit, and Lease. `rentStatus` is computed from Payment/Lease data, never stored.
-- Property mocks use a combined `address`, unit-count `units`, and `occupied`; storage is `Property.address/city/state/pincode`, `Unit` rows, and `Unit.status`. Unit rent is `Unit.rent` (the UI's property card can aggregate/format that value).
-- Payment mocks use `due`, `paid`, and `status`. The schema stores `billingMonth`, `paidOn`, `amount`, and `method`; the due date and `Paid`/`Due`/`Overdue` status are computed. `billingMonth` is always the first day of its month.
-- Maintenance mocks use `issue` and `date`; persistence uses `title`, `description`, and `createdAt`. A future maintenance API can expose display aliases without changing the history-preserving model.
-- The dashboard page currently displays fixed sample totals/chart labels. The dashboard endpoints return calculated values using the prompt's API field names (`totalProperties`, `rentCollectedThisMonth`, `overdueCount`, and so on). `recentPayments` includes presentation fields `tenant`, `property`, `unit`, `amount`, `due`, `paid`, and computed `status` alongside canonical IDs and `billingMonth`. The frontend must be connected to those fields in a later integration step.
-
-Rental-resource API reads/writes do not exist in the frontend yet, and its demo data is presentation-shaped. Authentication can call the backend when mock mode is disabled. The backend uses the required schema names and provides the dashboard response fields requested in this task rather than persisting derived UI strings/statuses.
+Demo mode stores sample data in local browser storage, so demo edits survive page refreshes without a database. It is a presentation mode and does not validate real credentials or write to PostgreSQL.
 
 ## Seed accounts
 

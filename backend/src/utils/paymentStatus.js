@@ -28,6 +28,7 @@ export async function getOverdueSummary(prisma, leases, asOf = new Date()) {
   })
   const paidKeys = new Set(payments.map(payment => `${payment.leaseId}:${billingMonthDate(payment.billingMonth).toISOString()}`))
   const overdueItems = []
+  const outstandingItems = []
 
   for (const lease of leases) {
     const start = billingMonthDate(lease.startDate)
@@ -36,8 +37,10 @@ export async function getOverdueSummary(prisma, leases, asOf = new Date()) {
     for (let month = new Date(start); month <= lastMonth; month = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1))) {
       const dueDate = getDueDate(month.getUTCFullYear(), month.getUTCMonth(), lease.dueDay)
       const key = `${lease.id}:${month.toISOString()}`
-      if (dueDate < today && !paidKeys.has(key)) {
-        overdueItems.push({ leaseId: lease.id, billingMonth: new Date(month), dueDate, amount: Number(lease.monthlyRent) })
+      if (!paidKeys.has(key)) {
+        const item = { leaseId: lease.id, billingMonth: new Date(month), dueDate, amount: Number(lease.monthlyRent), status: dueDate < today ? 'Overdue' : 'Due' }
+        outstandingItems.push(item)
+        if (dueDate < today) overdueItems.push(item)
       }
     }
   }
@@ -46,5 +49,6 @@ export async function getOverdueSummary(prisma, leases, asOf = new Date()) {
     overdueCount: overdueItems.length,
     overdueAmount: overdueItems.reduce((total, item) => total + item.amount, 0),
     overdueItems,
+    outstandingItems,
   }
 }
