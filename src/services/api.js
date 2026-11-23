@@ -80,22 +80,22 @@ export async function getTenantDashboard(token) {
 export async function getProperties(token) {
   if (useMockData) return demoData().properties
   const [result, units] = await Promise.all([request('/properties?limit=100', token), getUnits(token)])
-  return result.properties.map(p => {
+  return result.map(p => {
     const propertyUnits = units.filter(u => u.propertyId === p.id)
     return { ...p, units: p.totalUnits, occupied: p.occupiedUnits, rent: propertyUnits.length ? propertyUnits.reduce((s, u) => s + Number(u.rent), 0) / propertyUnits.length : 0, unitRecords: propertyUnits }
   })
 }
-export async function getUnits(token) { if (useMockData) return []; const result = await request('/units?limit=100', token); return result.units }
+export async function getUnits(token) { if (useMockData) return []; return request('/units?limit=100', token) }
 export async function getManagers(token) { if (useMockData) return []; return request('/users/managers', token) }
 export async function getTenants(token) {
   if (useMockData) return demoData().tenants
   const result = await request('/tenants?limit=100', token)
-  return result.tenants.map(t => ({ ...t, leaseLabel: t.lease ? `${dateLabel(t.lease.startDate)} – ${dateLabel(t.lease.endDate)}` : 'No active lease', rentStatus: t.lease?.status === 'ACTIVE' ? 'Active' : 'No lease' }))
+  return result.map(t => ({ ...t, leaseLabel: t.lease ? `${dateLabel(t.lease.startDate)} – ${dateLabel(t.lease.endDate)}` : 'No active lease', rentStatus: t.lease?.status === 'ACTIVE' ? 'Active' : 'No lease' }))
 }
 export async function getPayments(token, role) {
   if (useMockData) return demoData().payments
   const result = await request('/payments?limit=100', token)
-  const received = result.payments.map(p => ({ ...p, tenant: p.tenant || 'Tenant', property: p.property || p.unit || '—', paid: p.paidOn, status: 'Paid' }))
+  const received = result.map(p => ({ ...p, tenant: p.tenant || 'Tenant', property: p.property || p.unit || '—', paid: p.paidOn, status: 'Paid' }))
   if (role === 'TENANT') return received
   const dashboard = await request('/dashboard/landlord', token)
   const unpaid = (dashboard.outstandingItems || dashboard.overdueItems || []).map(item => ({ ...item, id: `unpaid-${item.leaseId}-${item.billingMonth}`, tenant: item.tenant, property: item.property, amount: item.amount, billingMonth: item.billingMonth, due: item.dueDate, paidOn: null, method: '—', status: item.status || 'Overdue' }))
@@ -104,7 +104,7 @@ export async function getPayments(token, role) {
 export async function getMaintenanceRequests(token) {
   if (useMockData) return demoData().requests
   const result = await request('/maintenance?limit=100', token)
-  return result.requests.map(r => ({ ...r, tenant: r.tenantName || r.tenant?.user?.name || 'Tenant', property: r.property ? `${r.property} · ${r.unitNumber || ''}` : r.unit?.property?.name || '—', issue: r.title, date: r.date, status: r.status }))
+  return result.map(r => ({ ...r, tenant: r.tenantName || r.tenant?.user?.name || 'Tenant', property: r.property ? `${r.property} · ${r.unitNumber || ''}` : r.unit?.property?.name || '—', issue: r.title, date: r.date, status: r.status }))
 }
 export async function createProperty(token, data) {
   if (useMockData) { const d = demoData(); const propertyId = id(); const count = Number(data.units); const item = { ...data, id: propertyId, units: count, occupied: 0, rent: Number(data.rent), unitRecords: Array.from({ length: count }, (_, index) => ({ id: id(), unitNumber: `Unit ${index + 1}`, status: 'VACANT', rent: Number(data.rent) })) }; d.properties.push(item); saveDemo(d); return item }
